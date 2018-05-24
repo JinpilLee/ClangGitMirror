@@ -151,6 +151,12 @@ struct PragmaOpenMPHandler : public PragmaHandler {
                     Token &FirstToken) override;
 };
 
+struct PragmaFlowHandler : public PragmaHandler {
+  PragmaFlowHandler() : PragmaHandler("flow") { }
+  void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
+                    Token &FirstToken) override;
+};
+
 /// PragmaCommentHandler - "\#pragma comment ...".
 struct PragmaCommentHandler : public PragmaHandler {
   PragmaCommentHandler(Sema &Actions)
@@ -301,6 +307,9 @@ void Parser::initializePragmaHandlers() {
     OpenMPHandler.reset(new PragmaNoOpenMPHandler());
   PP.AddPragmaHandler(OpenMPHandler.get());
 
+  FlowHandler.reset(new PragmaFlowHandler());
+  PP.AddPragmaHandler(FlowHandler.get());
+
   if (getLangOpts().MicrosoftExt ||
       getTargetInfo().getTriple().isOSBinFormatELF()) {
     MSCommentHandler.reset(new PragmaCommentHandler(Actions));
@@ -385,6 +394,9 @@ void Parser::resetPragmaHandlers() {
   }
   PP.RemovePragmaHandler(OpenMPHandler.get());
   OpenMPHandler.reset();
+
+  PP.RemovePragmaHandler(FlowHandler.get());
+  FlowHandler.reset();
 
   if (getLangOpts().MicrosoftExt ||
       getTargetInfo().getTriple().isOSBinFormatELF()) {
@@ -2146,6 +2158,35 @@ PragmaOpenMPHandler::HandlePragma(Preprocessor &PP,
   SourceLocation EodLoc = Tok.getLocation();
   Tok.startToken();
   Tok.setKind(tok::annot_pragma_openmp_end);
+  Tok.setLocation(EodLoc);
+  Pragma.push_back(Tok);
+
+  auto Toks = llvm::make_unique<Token[]>(Pragma.size());
+  std::copy(Pragma.begin(), Pragma.end(), Toks.get());
+  PP.EnterTokenStream(std::move(Toks), Pragma.size(),
+                      /*DisableMacroExpansion=*/false);
+}
+
+/// Handle '#pragma flow ...' when Flow is enabled.
+///
+void
+PragmaFlowHandler::HandlePragma(Preprocessor &PP,
+                                PragmaIntroducerKind Introducer,
+                                Token &FirstTok) {
+  SmallVector<Token, 16> Pragma;
+  Token Tok;
+  Tok.startToken();
+  Tok.setKind(tok::annot_pragma_flow);
+  Tok.setLocation(FirstTok.getLocation());
+
+  while (Tok.isNot(tok::eod) && Tok.isNot(tok::eof)) {
+    Pragma.push_back(Tok);
+    PP.Lex(Tok);
+  }
+
+  SourceLocation EodLoc = Tok.getLocation();
+  Tok.startToken();
+  Tok.setKind(tok::annot_pragma_flow_end);
   Tok.setLocation(EodLoc);
   Pragma.push_back(Tok);
 

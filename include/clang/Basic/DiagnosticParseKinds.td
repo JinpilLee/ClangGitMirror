@@ -1118,6 +1118,12 @@ def err_expected_end_declare_target : Error<
 def err_omp_declare_target_unexpected_clause: Error<
   "unexpected '%0' clause, only 'to' or 'link' clauses expected">;
 
+// Flow support
+def err_flow_directive_not_allowed : Error<
+  "no Flow directive allowed here">;
+def err_flow_unknown_directive : Error<
+  "unknown Flow directive">;
+
 // Pragma loop support.
 def err_pragma_loop_missing_argument : Error<
   "missing argument; expected %select{an integer value|"
