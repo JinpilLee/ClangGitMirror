@@ -34,6 +34,7 @@
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
 #include "clang/AST/StmtOpenMP.h"
+#include "clang/AST/StmtFlow.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
@@ -3202,6 +3203,8 @@ bool RecursiveASTVisitor<Derived>::VisitOMPIsDevicePtrClause(
   TRY_TO(VisitOMPClauseList(C));
   return true;
 }
+
+DEF_TRAVERSE_STMT(FlowOffloadDirective, {})
 
 // FIXME: look at the following tricky-seeming exprs to see if we
 // need to recurse on anything.  These are ones that have methods

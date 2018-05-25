@@ -2267,6 +2267,21 @@ void OMPClauseWriter::VisitOMPIsDevicePtrClause(OMPIsDevicePtrClause *C) {
 }
 
 //===----------------------------------------------------------------------===//
+// Flow Directives.
+//===----------------------------------------------------------------------===//
+void ASTStmtWriter::VisitFlowExecutableDirective(FlowExecutableDirective *E) {
+  Record.AddSourceLocation(E->getLocStart());
+  Record.AddSourceLocation(E->getLocEnd());
+  Record.AddStmt(E->getAssociatedStmt());
+}
+
+void ASTStmtWriter::VisitFlowOffloadDirective(FlowOffloadDirective *D) {
+  VisitStmt(D);
+  VisitFlowExecutableDirective(D);
+  Code = serialization::STMT_FLOW_OFFLOAD_DIRECTIVE;
+}
+
+//===----------------------------------------------------------------------===//
 // OpenMP Directives.
 //===----------------------------------------------------------------------===//
 void ASTStmtWriter::VisitOMPExecutableDirective(OMPExecutableDirective *E) {

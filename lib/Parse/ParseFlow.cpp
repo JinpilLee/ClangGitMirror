@@ -11,19 +11,11 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "clang/Basic/FlowKinds.h"
 #include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Parse/Parser.h"
-#include <iostream>
 
 using namespace clang;
-
-namespace clang {
-enum FlowDirectiveKind {
-  FLOWD_REGION,
-  FLOWD_OFFLOAD,
-  FLOWD_UNKNOWN
-};
-} // end namespace clang
 
 static FlowDirectiveKind getFlowDirectiveKind(StringRef Str) {
   return llvm::StringSwitch<FlowDirectiveKind>(Str)
@@ -52,11 +44,15 @@ StmtResult Parser::ParseFlowDirective() {
       ? FLOWD_UNKNOWN
       : getFlowDirectiveKind(getPreprocessor().getSpelling(Tok));
 
+  StmtResult AssociatedStmt;
   switch (DKind) {
   case FLOWD_REGION:
-    break;
+    SkipUntil(tok::annot_pragma_flow_end);
+    return ParseStatement();
   case FLOWD_OFFLOAD:
-    break;
+    SkipUntil(tok::annot_pragma_flow_end);
+    AssociatedStmt = (Sema::CompoundScopeRAII(Actions), ParseStatement());
+    return AssociatedStmt;
   case FLOWD_UNKNOWN:
   default:
     Diag(Loc, diag::err_flow_unknown_directive);

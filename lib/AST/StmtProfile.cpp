@@ -980,6 +980,15 @@ void StmtProfiler::VisitOMPTargetTeamsDistributeSimdDirective(
   VisitOMPLoopDirective(S);
 }
 
+void
+StmtProfiler::VisitFlowExecutableDirective(const FlowExecutableDirective *S) {
+  VisitStmt(S);
+}
+
+void StmtProfiler::VisitFlowOffloadDirective(const FlowOffloadDirective *S) {
+  VisitFlowExecutableDirective(S);
+}
+
 void StmtProfiler::VisitExpr(const Expr *S) {
   VisitStmt(S);
 }

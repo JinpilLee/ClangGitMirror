@@ -3081,6 +3081,8 @@ public:
   /// Emits the lvalue for the expression with possibly captured variable.
   LValue EmitOMPSharedLValue(const Expr *E);
 
+  void EmitFlowOffloadDirective(const FlowOffloadDirective &S);
+
 private:
   /// Helpers for blocks.
   llvm::Value *EmitBlockLiteral(const CGBlockInfo &Info);

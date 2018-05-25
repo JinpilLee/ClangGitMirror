@@ -27,6 +27,7 @@
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtObjC.h"
 #include "clang/AST/StmtOpenMP.h"
+#include "clang/AST/StmtFlow.h"
 #include "clang/Sema/Designator.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/Ownership.h"
@@ -665,6 +666,8 @@ public:
   ExprResult TransformParenDependentScopeDeclRefExpr(
       ParenExpr *PE, DependentScopeDeclRefExpr *DRE, bool IsAddressOfOperand,
       TypeSourceInfo **RecoveryTSI);
+
+  StmtResult TransformFlowExecutableDirective(FlowExecutableDirective *S);
 
   StmtResult TransformOMPExecutableDirective(OMPExecutableDirective *S);
 
@@ -7597,6 +7600,23 @@ template<typename Derived>
 StmtResult
 TreeTransform<Derived>::TransformSEHLeaveStmt(SEHLeaveStmt *S) {
   return S;
+}
+
+//===----------------------------------------------------------------------===//
+// OpenMP directive transformation
+//===----------------------------------------------------------------------===//
+template <typename Derived>
+StmtResult TreeTransform<Derived>::TransformFlowExecutableDirective(
+  FlowExecutableDirective *D) {
+  Stmt *S = D->getAssociatedStmt();
+  return getDerived().TransformStmt(S);
+}
+
+template <typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformFlowOffloadDirective(FlowOffloadDirective *D) {
+  StmtResult Res = getDerived().TransformFlowExecutableDirective(D);
+  return Res;
 }
 
 //===----------------------------------------------------------------------===//

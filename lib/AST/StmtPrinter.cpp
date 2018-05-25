@@ -105,6 +105,7 @@ namespace {
     void PrintCallArgs(CallExpr *E);
     void PrintRawSEHExceptHandler(SEHExceptStmt *S);
     void PrintRawSEHFinallyStmt(SEHFinallyStmt *S);
+    void PrintFlowExecutableDirective(FlowExecutableDirective *S);
     void PrintOMPExecutableDirective(OMPExecutableDirective *S,
                                      bool ForceNoStmt = false);
 
@@ -1052,6 +1053,19 @@ void OMPClausePrinter::VisitOMPIsDevicePtrClause(OMPIsDevicePtrClause *Node) {
     VisitOMPClauseList(Node, '(');
     OS << ")";
   }
+}
+
+//===----------------------------------------------------------------------===//
+//  Flow directives printing methods
+//===----------------------------------------------------------------------===//
+
+void StmtPrinter::PrintFlowExecutableDirective(FlowExecutableDirective *S) {
+  PrintStmt(S->getAssociatedStmt());
+}
+
+void StmtPrinter::VisitFlowOffloadDirective(FlowOffloadDirective *Node) {
+  Indent() << "#pragma flow offload";
+  PrintFlowExecutableDirective(Node);
 }
 
 //===----------------------------------------------------------------------===//

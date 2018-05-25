@@ -246,3 +246,7 @@ def OMPTargetTeamsDistributeDirective : DStmt<OMPLoopDirective>;
 def OMPTargetTeamsDistributeParallelForDirective : DStmt<OMPLoopDirective>;
 def OMPTargetTeamsDistributeParallelForSimdDirective : DStmt<OMPLoopDirective>;
 def OMPTargetTeamsDistributeSimdDirective : DStmt<OMPLoopDirective>;
+
+// Flow directives
+def FlowExecutableDirective : Stmt<1>;
+def FlowOffloadDirective : DStmt<FlowExecutableDirective>;

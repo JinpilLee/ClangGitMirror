@@ -2678,6 +2678,21 @@ void OMPClauseReader::VisitOMPIsDevicePtrClause(OMPIsDevicePtrClause *C) {
 }
 
 //===----------------------------------------------------------------------===//
+// Flow Directives.
+//===----------------------------------------------------------------------===//
+
+void ASTStmtReader::VisitFlowExecutableDirective(FlowExecutableDirective *E) {
+  E->setLocStart(ReadSourceLocation());
+  E->setLocEnd(ReadSourceLocation());
+  E->setAssociatedStmt(Record.readSubStmt());
+}
+
+void ASTStmtReader::VisitFlowOffloadDirective(FlowOffloadDirective *D) {
+  VisitStmt(D);
+  VisitFlowExecutableDirective(D);
+}
+
+//===----------------------------------------------------------------------===//
 // OpenMP Directives.
 //===----------------------------------------------------------------------===//
 
@@ -3564,6 +3579,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                                               NestedNameSpecifierLoc(),
                                               DeclarationNameInfo(),
                                               nullptr);
+      break;
+
+    case STMT_FLOW_OFFLOAD_DIRECTIVE:
+      S = FlowOffloadDirective::CreateEmpty(Context);
       break;
 
     case STMT_OMP_PARALLEL_DIRECTIVE:
