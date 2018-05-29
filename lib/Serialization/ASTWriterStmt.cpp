@@ -2275,6 +2275,12 @@ void ASTStmtWriter::VisitFlowExecutableDirective(FlowExecutableDirective *E) {
   Record.AddStmt(E->getAssociatedStmt());
 }
 
+void ASTStmtWriter::VisitFlowRegionDirective(FlowRegionDirective *D) {
+  VisitStmt(D);
+  VisitFlowExecutableDirective(D);
+  Code = serialization::STMT_FLOW_REGION_DIRECTIVE;
+}
+
 void ASTStmtWriter::VisitFlowOffloadDirective(FlowOffloadDirective *D) {
   VisitStmt(D);
   VisitFlowExecutableDirective(D);

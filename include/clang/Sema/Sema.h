@@ -33,6 +33,7 @@
 #include "clang/Basic/ExpressionTraits.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/OpenMPKinds.h"
+#include "clang/Basic/FlowKinds.h"
 #include "clang/Basic/PragmaKinds.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TemplateKinds.h"
@@ -8613,6 +8614,24 @@ public:
   /// emit diagnostics.
   /// \return true if type is disabled.
   bool checkOpenCLDisabledDecl(const NamedDecl &D, const Expr &E);
+
+  //===--------------------------------------------------------------------===//
+  // Flow directives and clauses
+  //
+private:
+
+public:
+  StmtResult
+  ActOnFlowExecutableDirective(FlowDirectiveKind Kind, Stmt *AStmt,
+                               SourceLocation StartLoc, SourceLocation EndLoc);
+
+  StmtResult
+  ActOnFlowRegionDirective(Stmt *AStmt,
+                           SourceLocation StartLoc, SourceLocation EndLoc);
+
+  StmtResult
+  ActOnFlowOffloadDirective(Stmt *AStmt,
+                            SourceLocation StartLoc, SourceLocation EndLoc);
 
   //===--------------------------------------------------------------------===//
   // OpenMP directives and clauses.

@@ -24,6 +24,7 @@ private:
   FlowDirectiveKind Kind;
   SourceLocation StartLoc;
   SourceLocation EndLoc;
+  Stmt *AssociatedStmt;
 
 protected:
   FlowExecutableDirective(StmtClass SC, FlowDirectiveKind K,
@@ -31,30 +32,29 @@ protected:
                           Stmt *S)
       : Stmt(SC), Kind(K),
         StartLoc(std::move(StartLoc)), EndLoc(std::move(EndLoc)) {
-    *child_begin() = S;
+    AssociatedStmt = S;
   }
 
 public:
   void setAssociatedStmt(Stmt *S) {
-    *child_begin() = S;
+    AssociatedStmt = S;
   }
 
   void setLocStart(SourceLocation Loc) { StartLoc = Loc; }
   void setLocEnd(SourceLocation Loc) { EndLoc = Loc; }
 
   const Stmt *getAssociatedStmt() const {
-    return *child_begin();
+    return AssociatedStmt;
   }
 
   Stmt *getAssociatedStmt() {
-    return *child_begin();
+    return AssociatedStmt;
   }
 
   SourceLocation getLocStart() const { return StartLoc; }
   SourceLocation getLocEnd() const { return EndLoc; }
   child_range children() {
-    Stmt *S = getAssociatedStmt();
-    return child_range(&S, &S + 1);
+    return child_range(&AssociatedStmt, &AssociatedStmt + 1);
   }
 
   FlowDirectiveKind getDirectiveKind() const { return Kind; }
@@ -62,6 +62,29 @@ public:
   static bool classof(const Stmt *S) {
     return S->getStmtClass() >= firstFlowExecutableDirectiveConstant &&
            S->getStmtClass() <= lastFlowExecutableDirectiveConstant;
+  }
+};
+
+class FlowRegionDirective : public FlowExecutableDirective {
+private:
+  explicit FlowRegionDirective()
+    : FlowExecutableDirective(FlowRegionDirectiveClass, FLOWD_REGION,
+                              SourceLocation(), SourceLocation(), nullptr) {}
+
+  FlowRegionDirective(SourceLocation StartLoc, SourceLocation EndLoc, Stmt *S)
+    : FlowExecutableDirective(FlowRegionDirectiveClass, FLOWD_REGION,
+                              StartLoc, EndLoc, S) {}
+
+public:
+  static FlowRegionDirective *
+  Create(const ASTContext &C, SourceLocation StartLoc, SourceLocation EndLoc,
+         Stmt *AssociatedStmt);
+
+  static FlowRegionDirective *
+  CreateEmpty(const ASTContext &C);
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == FlowRegionDirectiveClass;
   }
 };
 

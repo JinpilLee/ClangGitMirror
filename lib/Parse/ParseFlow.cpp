@@ -37,7 +37,7 @@ static FlowDirectiveKind getFlowDirectiveKind(StringRef Str) {
 StmtResult Parser::ParseFlowDirective() {
   StmtResult Directive = StmtError();
 
-  SourceLocation Loc = ConsumeAnnotationToken();
+  SourceLocation Loc = ConsumeAnnotationToken(), EndLoc;
   Token Tok = getCurToken();
   auto DKind =
     Tok.isAnnotation()
@@ -47,12 +47,12 @@ StmtResult Parser::ParseFlowDirective() {
   StmtResult AssociatedStmt;
   switch (DKind) {
   case FLOWD_REGION:
-    SkipUntil(tok::annot_pragma_flow_end);
-    return ParseStatement();
   case FLOWD_OFFLOAD:
-    SkipUntil(tok::annot_pragma_flow_end);
+    SkipUntil(tok::annot_pragma_flow_end, StopBeforeMatch);
+    EndLoc = ConsumeAnnotationToken();
     AssociatedStmt = (Sema::CompoundScopeRAII(Actions), ParseStatement());
-    return AssociatedStmt;
+    return Actions.ActOnFlowExecutableDirective(DKind, AssociatedStmt.get(),
+                                                Loc, EndLoc);
   case FLOWD_UNKNOWN:
   default:
     Diag(Loc, diag::err_flow_unknown_directive);

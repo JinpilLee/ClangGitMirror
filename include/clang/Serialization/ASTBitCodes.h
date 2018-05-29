@@ -1878,7 +1878,8 @@ namespace serialization {
       STMT_OMP_TARGET_TEAMS_DISTRIBUTE_SIMD_DIRECTIVE,
       EXPR_OMP_ARRAY_SECTION,
 
-      // OpenMP directives
+      // Flow directives
+      STMT_FLOW_REGION_DIRECTIVE,
       STMT_FLOW_OFFLOAD_DIRECTIVE,
 
       // ARC

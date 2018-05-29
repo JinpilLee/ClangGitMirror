@@ -2517,7 +2517,11 @@ enum CXCursorKind {
    */
   CXCursor_OMPTargetTeamsDistributeSimdDirective = 279,
 
-  CXCursor_LastStmt = CXCursor_OMPTargetTeamsDistributeSimdDirective,
+  CXCursor_FlowRegionDirective = 280,
+
+  CXCursor_FlowOffloadDirective = 281,
+
+  CXCursor_LastStmt = CXCursor_FlowOffloadDirective,
 
   /**
    * Cursor that represents the translation unit itself.

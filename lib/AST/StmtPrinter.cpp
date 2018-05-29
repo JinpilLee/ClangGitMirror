@@ -1063,6 +1063,11 @@ void StmtPrinter::PrintFlowExecutableDirective(FlowExecutableDirective *S) {
   PrintStmt(S->getAssociatedStmt());
 }
 
+void StmtPrinter::VisitFlowRegionDirective(FlowRegionDirective *Node) {
+  Indent() << "#pragma flow region";
+  PrintFlowExecutableDirective(Node);
+}
+
 void StmtPrinter::VisitFlowOffloadDirective(FlowOffloadDirective *Node) {
   Indent() << "#pragma flow offload";
   PrintFlowExecutableDirective(Node);

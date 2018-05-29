@@ -192,8 +192,11 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::SEHTryStmtClass:
     EmitSEHTryStmt(cast<SEHTryStmt>(*S));
     break;
+  case Stmt::FlowRegionDirectiveClass:
+    EmitFlowRegionDirective(cast<FlowRegionDirective>(*S));
+    break;
   case Stmt::FlowOffloadDirectiveClass:
-    // FIXME EmitFlowOffloadDirective(cast<FlowOffloadDirective>(*S));
+    EmitFlowOffloadDirective(cast<FlowOffloadDirective>(*S));
     break;
   case Stmt::OMPParallelDirectiveClass:
     EmitOMPParallelDirective(cast<OMPParallelDirective>(*S));

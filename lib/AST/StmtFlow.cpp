@@ -16,6 +16,24 @@
 
 using namespace clang;
 
+FlowRegionDirective *
+FlowRegionDirective::Create(const ASTContext &C,
+                            SourceLocation StartLoc, SourceLocation EndLoc,
+                            Stmt *AssociatedStmt) {
+  void *Mem = C.Allocate(sizeof(FlowRegionDirective));
+  FlowRegionDirective *Dir =
+    new (Mem) FlowRegionDirective(StartLoc, EndLoc, AssociatedStmt);
+  return Dir;
+}
+
+FlowRegionDirective *
+FlowRegionDirective::CreateEmpty(const ASTContext &C) {
+  void *Mem = C.Allocate(sizeof(FlowRegionDirective));
+  FlowRegionDirective *Dir =
+    new (Mem) FlowRegionDirective();
+  return Dir;
+}
+
 FlowOffloadDirective *
 FlowOffloadDirective::Create(const ASTContext &C,
                              SourceLocation StartLoc, SourceLocation EndLoc,

@@ -7609,7 +7609,18 @@ template <typename Derived>
 StmtResult TreeTransform<Derived>::TransformFlowExecutableDirective(
   FlowExecutableDirective *D) {
   Stmt *S = D->getAssociatedStmt();
-  return getDerived().TransformStmt(S);
+  StmtResult AStmt = getDerived().TransformStmt(S);
+  return getSema().ActOnFlowExecutableDirective(D->getDirectiveKind(),
+                                                AStmt.get(),
+                                                D->getLocStart(),
+                                                D->getLocEnd());
+}
+
+template <typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformFlowRegionDirective(FlowRegionDirective *D) {
+  StmtResult Res = getDerived().TransformFlowExecutableDirective(D);
+  return Res;
 }
 
 template <typename Derived>

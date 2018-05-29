@@ -17,7 +17,12 @@
 using namespace clang;
 using namespace CodeGen;
 
+void CodeGenFunction::EmitFlowRegionDirective(const FlowRegionDirective &S) {
+  EmitStmt(S.getAssociatedStmt());
+  return;
+}
+
 void CodeGenFunction::EmitFlowOffloadDirective(const FlowOffloadDirective &S) {
-// FIXME implement
+  EmitStmt(S.getAssociatedStmt());
   return;
 }

@@ -249,4 +249,5 @@ def OMPTargetTeamsDistributeSimdDirective : DStmt<OMPLoopDirective>;
 
 // Flow directives
 def FlowExecutableDirective : Stmt<1>;
+def FlowRegionDirective : DStmt<FlowExecutableDirective>;
 def FlowOffloadDirective : DStmt<FlowExecutableDirective>;

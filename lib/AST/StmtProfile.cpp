@@ -985,6 +985,10 @@ StmtProfiler::VisitFlowExecutableDirective(const FlowExecutableDirective *S) {
   VisitStmt(S);
 }
 
+void StmtProfiler::VisitFlowRegionDirective(const FlowRegionDirective *S) {
+  VisitFlowExecutableDirective(S);
+}
+
 void StmtProfiler::VisitFlowOffloadDirective(const FlowOffloadDirective *S) {
   VisitFlowExecutableDirective(S);
 }

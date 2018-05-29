@@ -3204,6 +3204,7 @@ bool RecursiveASTVisitor<Derived>::VisitOMPIsDevicePtrClause(
   return true;
 }
 
+DEF_TRAVERSE_STMT(FlowRegionDirective, {})
 DEF_TRAVERSE_STMT(FlowOffloadDirective, {})
 
 // FIXME: look at the following tricky-seeming exprs to see if we

@@ -2687,6 +2687,11 @@ void ASTStmtReader::VisitFlowExecutableDirective(FlowExecutableDirective *E) {
   E->setAssociatedStmt(Record.readSubStmt());
 }
 
+void ASTStmtReader::VisitFlowRegionDirective(FlowRegionDirective *D) {
+  VisitStmt(D);
+  VisitFlowExecutableDirective(D);
+}
+
 void ASTStmtReader::VisitFlowOffloadDirective(FlowOffloadDirective *D) {
   VisitStmt(D);
   VisitFlowExecutableDirective(D);
@@ -3579,6 +3584,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                                               NestedNameSpecifierLoc(),
                                               DeclarationNameInfo(),
                                               nullptr);
+      break;
+
+    case STMT_FLOW_REGION_DIRECTIVE:
+      S = FlowRegionDirective::CreateEmpty(Context);
       break;
 
     case STMT_FLOW_OFFLOAD_DIRECTIVE:
