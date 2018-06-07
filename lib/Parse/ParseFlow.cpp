@@ -50,7 +50,7 @@ StmtResult Parser::ParseFlowDirective() {
   case FLOWD_OFFLOAD:
     SkipUntil(tok::annot_pragma_flow_end, StopBeforeMatch);
     EndLoc = ConsumeAnnotationToken();
-    AssociatedStmt = (Sema::CompoundScopeRAII(Actions), ParseStatement());
+    AssociatedStmt = ParseStatement();
     return Actions.ActOnFlowExecutableDirective(DKind, AssociatedStmt.get(),
                                                 Loc, EndLoc);
   case FLOWD_UNKNOWN:

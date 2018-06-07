@@ -28,6 +28,7 @@ static MDNode *createMetadata(LLVMContext &Ctx, const LoopAttributes &Attrs,
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
       Attrs.DistributeEnable == LoopAttributes::Unspecified &&
+      !Attrs.IsRegionTarget && !Attrs.IsOffloadTarget &&
       !StartLoc && !EndLoc)
     return nullptr;
 
@@ -99,6 +100,16 @@ static MDNode *createMetadata(LLVMContext &Ctx, const LoopAttributes &Attrs,
     Args.push_back(MDNode::get(Ctx, Vals));
   }
 
+  if (Attrs.IsRegionTarget) {
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.flow.region")};
+    Args.push_back(MDNode::get(Ctx, Vals));
+  }
+
+  if (Attrs.IsOffloadTarget) {
+    Metadata *Vals[] = {MDString::get(Ctx, "llvm.loop.flow.offload")};
+    Args.push_back(MDNode::get(Ctx, Vals));
+  }
+
   // Set the first operand to itself.
   MDNode *LoopID = MDNode::get(Ctx, Args);
   LoopID->replaceOperandWith(0, LoopID);
@@ -109,7 +120,8 @@ LoopAttributes::LoopAttributes(bool IsParallel)
     : IsParallel(IsParallel), VectorizeEnable(LoopAttributes::Unspecified),
       UnrollEnable(LoopAttributes::Unspecified), VectorizeWidth(0),
       InterleaveCount(0), UnrollCount(0),
-      DistributeEnable(LoopAttributes::Unspecified) {}
+      DistributeEnable(LoopAttributes::Unspecified),
+      IsRegionTarget(false), IsOffloadTarget(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
@@ -119,6 +131,8 @@ void LoopAttributes::clear() {
   VectorizeEnable = LoopAttributes::Unspecified;
   UnrollEnable = LoopAttributes::Unspecified;
   DistributeEnable = LoopAttributes::Unspecified;
+  IsRegionTarget = false;
+  IsOffloadTarget = false;
 }
 
 LoopInfo::LoopInfo(BasicBlock *Header, const LoopAttributes &Attrs,

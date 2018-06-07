@@ -18,11 +18,13 @@ using namespace clang;
 using namespace CodeGen;
 
 void CodeGenFunction::EmitFlowRegionDirective(const FlowRegionDirective &S) {
+  LoopStack.setRegionTarget(true);
   EmitStmt(S.getAssociatedStmt());
   return;
 }
 
 void CodeGenFunction::EmitFlowOffloadDirective(const FlowOffloadDirective &S) {
+  LoopStack.setOffloadTarget(true);
   EmitStmt(S.getAssociatedStmt());
   return;
 }

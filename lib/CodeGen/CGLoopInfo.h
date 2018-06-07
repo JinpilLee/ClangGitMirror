@@ -60,6 +60,14 @@ struct LoopAttributes {
 
   /// Value for llvm.loop.distribute.enable metadata.
   LVEnableState DistributeEnable;
+
+  /// Value for Flow region directive
+  // llvm.loop.flow.region metadata
+  bool IsRegionTarget;
+
+  /// Value for Flow offload directive
+  // llvm.loop.flow.offload metadata
+  bool IsOffloadTarget;
 };
 
 /// Information used when generating a structured loop.
@@ -151,6 +159,16 @@ public:
 
   /// Set the unroll count for the next loop pushed.
   void setUnrollCount(unsigned C) { StagedAttrs.UnrollCount = C; }
+
+  /// Set the IsRegionTarget for the next loop pushed.
+  void setRegionTarget(bool Enable = true) {
+    StagedAttrs.IsRegionTarget = Enable;
+  }
+
+  /// Set the IsOffloadTarget for the next loop pushed.
+  void setOffloadTarget(bool Enable = true) {
+    StagedAttrs.IsOffloadTarget = Enable;
+  }
 
 private:
   /// Returns true if there is LoopInfo on the stack.
