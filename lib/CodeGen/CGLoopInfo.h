@@ -49,6 +49,9 @@ struct LoopAttributes {
   /// Value for llvm.loop.unroll.* metadata (enable, disable, or full).
   LVEnableState UnrollEnable;
 
+  /// Value for llvm.loop.unroll_and_jam.* metadata (enable, disable, or full).
+  LVEnableState UnrollAndJamEnable;
+
   /// Value for llvm.loop.vectorize.width metadata.
   unsigned VectorizeWidth;
 
@@ -57,6 +60,9 @@ struct LoopAttributes {
 
   /// llvm.unroll.
   unsigned UnrollCount;
+
+  /// llvm.unroll.
+  unsigned UnrollAndJamCount;
 
   /// Value for llvm.loop.distribute.enable metadata.
   LVEnableState DistributeEnable;
@@ -151,6 +157,11 @@ public:
     StagedAttrs.UnrollEnable = State;
   }
 
+  /// Set the next pushed loop unroll_and_jam state.
+  void setUnrollAndJamState(const LoopAttributes::LVEnableState &State) {
+    StagedAttrs.UnrollAndJamEnable = State;
+  }
+
   /// Set the vectorize width for the next loop pushed.
   void setVectorizeWidth(unsigned W) { StagedAttrs.VectorizeWidth = W; }
 
@@ -160,6 +171,7 @@ public:
   /// Set the unroll count for the next loop pushed.
   void setUnrollCount(unsigned C) { StagedAttrs.UnrollCount = C; }
 
+<<<<<<< HEAD
   /// Set the IsRegionTarget for the next loop pushed.
   void setRegionTarget(bool Enable = true) {
     StagedAttrs.IsRegionTarget = Enable;
@@ -169,6 +181,10 @@ public:
   void setOffloadTarget(bool Enable = true) {
     StagedAttrs.IsOffloadTarget = Enable;
   }
+=======
+  /// \brief Set the unroll count for the next loop pushed.
+  void setUnrollAndJamCount(unsigned C) { StagedAttrs.UnrollAndJamCount = C; }
+>>>>>>> master
 
 private:
   /// Returns true if there is LoopInfo on the stack.

@@ -42,6 +42,21 @@ struct StructuralEquivalenceTest : ::testing::Test {
     return std::make_tuple(D0, D1);
   }
 
+  std::tuple<TranslationUnitDecl *, TranslationUnitDecl *> makeTuDecls(
+      const std::string &SrcCode0, const std::string &SrcCode1, Language Lang) {
+    this->Code0 = SrcCode0;
+    this->Code1 = SrcCode1;
+    ArgVector Args = getBasicRunOptionsForLanguage(Lang);
+
+    const char *const InputFileName = "input.cc";
+
+    AST0 = tooling::buildASTFromCodeWithArgs(Code0, Args, InputFileName);
+    AST1 = tooling::buildASTFromCodeWithArgs(Code1, Args, InputFileName);
+
+    return std::make_tuple(AST0->getASTContext().getTranslationUnitDecl(),
+                           AST1->getASTContext().getTranslationUnitDecl());
+  }
+
   // Get a pair of node pointers into the synthesized AST from the given code
   // snippets. The same matcher is used for both snippets.
   template <typename NodeType, typename MatcherType>
@@ -62,15 +77,22 @@ struct StructuralEquivalenceTest : ::testing::Test {
     return makeDecls<NamedDecl>(SrcCode0, SrcCode1, Lang, Matcher);
   }
 
-  bool testStructuralMatch(NamedDecl *D0, NamedDecl *D1) {
-    llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls;
-    StructuralEquivalenceContext Ctx(
-        D0->getASTContext(), D1->getASTContext(), NonEquivalentDecls,
-        StructuralEquivalenceKind::Default, false, false);
-    return Ctx.IsStructurallyEquivalent(D0, D1);
+  bool testStructuralMatch(Decl *D0, Decl *D1) {
+    llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls01;
+    llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls10;
+    StructuralEquivalenceContext Ctx01(
+        D0->getASTContext(), D1->getASTContext(),
+        NonEquivalentDecls01, StructuralEquivalenceKind::Default, false, false);
+    StructuralEquivalenceContext Ctx10(
+        D1->getASTContext(), D0->getASTContext(),
+        NonEquivalentDecls10, StructuralEquivalenceKind::Default, false, false);
+    bool Eq01 = Ctx01.IsEquivalent(D0, D1);
+    bool Eq10 = Ctx10.IsEquivalent(D1, D0);
+    EXPECT_EQ(Eq01, Eq10);
+    return Eq01;
   }
 
-  bool testStructuralMatch(std::tuple<NamedDecl *, NamedDecl *> t) {
+  bool testStructuralMatch(std::tuple<Decl *, Decl *> t) {
     return testStructuralMatch(get<0>(t), get<1>(t));
   }
 };
@@ -199,6 +221,14 @@ TEST_F(StructuralEquivalenceTest, WrongOrderOfFieldsInClass) {
 
 struct StructuralEquivalenceFunctionTest : StructuralEquivalenceTest {
 };
+
+TEST_F(StructuralEquivalenceFunctionTest, TemplateVsNonTemplate) {
+  auto t = makeNamedDecls(
+      "void foo();",
+      "template<class T> void foo();",
+      Lang_CXX);
+  EXPECT_FALSE(testStructuralMatch(t));
+}
 
 TEST_F(StructuralEquivalenceFunctionTest, ParamConstWithRef) {
   auto t = makeNamedDecls("void foo(int&);",
@@ -468,6 +498,11 @@ TEST_F(StructuralEquivalenceCXXMethodTest, OutOfClass2) {
 }
 
 struct StructuralEquivalenceRecordTest : StructuralEquivalenceTest {
+  // FIXME Use a common getRecordDecl with ASTImporterTest.cpp!
+  RecordDecl *getRecordDecl(FieldDecl *FD) {
+    auto *ET = cast<ElaboratedType>(FD->getType().getTypePtr());
+    return cast<RecordType>(ET->getNamedType().getTypePtr())->getDecl();
+  };
 };
 
 TEST_F(StructuralEquivalenceRecordTest, Name) {
@@ -535,6 +570,104 @@ TEST_F(StructuralEquivalenceRecordTest, Match) {
   EXPECT_TRUE(testStructuralMatch(t));
 }
 
+TEST_F(StructuralEquivalenceRecordTest, UnnamedRecordsShouldBeInequivalent) {
+  auto t = makeTuDecls(
+      R"(
+      struct A {
+        struct {
+          struct A *next;
+        } entry0;
+        struct {
+          struct A *next;
+        } entry1;
+      };
+      )",
+      "", Lang_C);
+  auto *TU = get<0>(t);
+  auto *Entry0 =
+      FirstDeclMatcher<FieldDecl>().match(TU, fieldDecl(hasName("entry0")));
+  auto *Entry1 =
+      FirstDeclMatcher<FieldDecl>().match(TU, fieldDecl(hasName("entry1")));
+  auto *R0 = getRecordDecl(Entry0);
+  auto *R1 = getRecordDecl(Entry1);
+
+  ASSERT_NE(R0, R1);
+  EXPECT_TRUE(testStructuralMatch(R0, R0));
+  EXPECT_TRUE(testStructuralMatch(R1, R1));
+  EXPECT_FALSE(testStructuralMatch(R0, R1));
+}
+
+TEST_F(StructuralEquivalenceRecordTest,
+       UnnamedRecordsShouldBeInequivalentEvenIfTheSecondIsBeingDefined) {
+  auto Code =
+      R"(
+      struct A {
+        struct {
+          struct A *next;
+        } entry0;
+        struct {
+          struct A *next;
+        } entry1;
+      };
+      )";
+  auto t = makeTuDecls(Code, Code, Lang_C);
+
+  auto *FromTU = get<0>(t);
+  auto *Entry1 =
+      FirstDeclMatcher<FieldDecl>().match(FromTU, fieldDecl(hasName("entry1")));
+
+  auto *ToTU = get<1>(t);
+  auto *Entry0 =
+      FirstDeclMatcher<FieldDecl>().match(ToTU, fieldDecl(hasName("entry0")));
+  auto *A =
+      FirstDeclMatcher<RecordDecl>().match(ToTU, recordDecl(hasName("A")));
+  A->startDefinition(); // Set isBeingDefined, getDefinition() will return a
+                        // nullptr. This may be the case during ASTImport.
+
+  auto *R0 = getRecordDecl(Entry0);
+  auto *R1 = getRecordDecl(Entry1);
+
+  ASSERT_NE(R0, R1);
+  EXPECT_TRUE(testStructuralMatch(R0, R0));
+  EXPECT_TRUE(testStructuralMatch(R1, R1));
+  EXPECT_FALSE(testStructuralMatch(R0, R1));
+}
+
+TEST_F(StructuralEquivalenceRecordTest, TemplateVsNonTemplate) {
+  auto t = makeDecls<CXXRecordDecl>(
+      "struct A { };",
+      "template<class T> struct A { };",
+      Lang_CXX,
+      cxxRecordDecl(hasName("A")));
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceRecordTest,
+    FwdDeclRecordShouldBeEqualWithFwdDeclRecord) {
+  auto t = makeNamedDecls("class foo;", "class foo;", Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceRecordTest,
+       FwdDeclRecordShouldBeEqualWithRecordWhichHasDefinition) {
+  auto t =
+      makeNamedDecls("class foo;", "class foo { int A; };", Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceRecordTest,
+       RecordShouldBeEqualWithRecordWhichHasDefinition) {
+  auto t = makeNamedDecls("class foo { int A; };", "class foo { int A; };",
+                          Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceRecordTest, RecordsWithDifferentBody) {
+  auto t = makeNamedDecls("class foo { int B; };", "class foo { int A; };",
+                          Lang_CXX11);
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
 TEST_F(StructuralEquivalenceTest, CompareSameDeclWithMultiple) {
   auto t = makeNamedDecls(
       "struct A{ }; struct B{ }; void foo(A a, A b);",
@@ -542,6 +675,34 @@ TEST_F(StructuralEquivalenceTest, CompareSameDeclWithMultiple) {
       Lang_CXX);
   EXPECT_FALSE(testStructuralMatch(t));
 }
+
+struct StructuralEquivalenceEnumTest : StructuralEquivalenceTest {};
+
+TEST_F(StructuralEquivalenceEnumTest, FwdDeclEnumShouldBeEqualWithFwdDeclEnum) {
+  auto t = makeNamedDecls("enum class foo;", "enum class foo;", Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceEnumTest,
+       FwdDeclEnumShouldBeEqualWithEnumWhichHasDefinition) {
+  auto t =
+      makeNamedDecls("enum class foo;", "enum class foo { A };", Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceEnumTest,
+       EnumShouldBeEqualWithEnumWhichHasDefinition) {
+  auto t = makeNamedDecls("enum class foo { A };", "enum class foo { A };",
+                          Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceEnumTest, EnumsWithDifferentBody) {
+  auto t = makeNamedDecls("enum class foo { B };", "enum class foo { A };",
+                          Lang_CXX11);
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
 
 } // end namespace ast_matchers
 } // end namespace clang
