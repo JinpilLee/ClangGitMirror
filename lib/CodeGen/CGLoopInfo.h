@@ -171,7 +171,9 @@ public:
   /// Set the unroll count for the next loop pushed.
   void setUnrollCount(unsigned C) { StagedAttrs.UnrollCount = C; }
 
-<<<<<<< HEAD
+  /// \brief Set the unroll count for the next loop pushed.
+  void setUnrollAndJamCount(unsigned C) { StagedAttrs.UnrollAndJamCount = C; }
+
   /// Set the IsRegionTarget for the next loop pushed.
   void setRegionTarget(bool Enable = true) {
     StagedAttrs.IsRegionTarget = Enable;
@@ -181,10 +183,6 @@ public:
   void setOffloadTarget(bool Enable = true) {
     StagedAttrs.IsOffloadTarget = Enable;
   }
-=======
-  /// \brief Set the unroll count for the next loop pushed.
-  void setUnrollAndJamCount(unsigned C) { StagedAttrs.UnrollAndJamCount = C; }
->>>>>>> master
 
 private:
   /// Returns true if there is LoopInfo on the stack.

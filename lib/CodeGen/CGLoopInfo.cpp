@@ -28,15 +28,10 @@ static MDNode *createMetadata(LLVMContext &Ctx, const LoopAttributes &Attrs,
       Attrs.UnrollAndJamCount == 0 &&
       Attrs.VectorizeEnable == LoopAttributes::Unspecified &&
       Attrs.UnrollEnable == LoopAttributes::Unspecified &&
-<<<<<<< HEAD
+      Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
       Attrs.DistributeEnable == LoopAttributes::Unspecified &&
       !Attrs.IsRegionTarget && !Attrs.IsOffloadTarget &&
       !StartLoc && !EndLoc)
-=======
-      Attrs.UnrollAndJamEnable == LoopAttributes::Unspecified &&
-      Attrs.DistributeEnable == LoopAttributes::Unspecified && !StartLoc &&
-      !EndLoc)
->>>>>>> master
     return nullptr;
 
   SmallVector<Metadata *, 4> Args;
@@ -146,17 +141,11 @@ static MDNode *createMetadata(LLVMContext &Ctx, const LoopAttributes &Attrs,
 
 LoopAttributes::LoopAttributes(bool IsParallel)
     : IsParallel(IsParallel), VectorizeEnable(LoopAttributes::Unspecified),
-<<<<<<< HEAD
-      UnrollEnable(LoopAttributes::Unspecified), VectorizeWidth(0),
-      InterleaveCount(0), UnrollCount(0),
-      DistributeEnable(LoopAttributes::Unspecified),
-      IsRegionTarget(false), IsOffloadTarget(false) {}
-=======
       UnrollEnable(LoopAttributes::Unspecified),
       UnrollAndJamEnable(LoopAttributes::Unspecified), VectorizeWidth(0),
       InterleaveCount(0), UnrollCount(0), UnrollAndJamCount(0),
-      DistributeEnable(LoopAttributes::Unspecified) {}
->>>>>>> master
+      DistributeEnable(LoopAttributes::Unspecified),
+      IsRegionTarget(false), IsOffloadTarget(false) {}
 
 void LoopAttributes::clear() {
   IsParallel = false;
