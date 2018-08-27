@@ -51,8 +51,17 @@ public:
     return AssociatedStmt;
   }
 
-  SourceLocation getLocStart() const { return StartLoc; }
-  SourceLocation getLocEnd() const { return EndLoc; }
+  LLVM_ATTRIBUTE_DEPRECATED(SourceLocation getLocStart() const LLVM_READONLY,
+                            "Use getBeginLoc instead") {
+    return getBeginLoc();
+  }
+  SourceLocation getBeginLoc() const { return StartLoc; }
+  LLVM_ATTRIBUTE_DEPRECATED(SourceLocation getLocEnd() const LLVM_READONLY,
+                            "Use getEndLoc instead") {
+    return getEndLoc();
+  }
+  SourceLocation getEndLoc() const { return EndLoc; }
+
   child_range children() {
     return child_range(&AssociatedStmt, &AssociatedStmt + 1);
   }
