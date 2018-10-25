@@ -1270,6 +1270,7 @@ void ASTStmtReader::VisitCXXForRangeStmt(CXXForRangeStmt *S) {
   S->CoawaitLoc = ReadSourceLocation();
   S->ColonLoc = ReadSourceLocation();
   S->RParenLoc = ReadSourceLocation();
+  S->setInit(Record.readSubStmt());
   S->setRangeStmt(Record.readSubStmt());
   S->setBeginStmt(Record.readSubStmt());
   S->setEndStmt(Record.readSubStmt());
@@ -1803,6 +1804,7 @@ void ASTStmtReader::VisitAsTypeExpr(AsTypeExpr *E) {
 }
 
 //===----------------------------------------------------------------------===//
+<<<<<<< HEAD
 // OpenMP Clauses.
 //===----------------------------------------------------------------------===//
 
@@ -2713,13 +2715,15 @@ void ASTStmtReader::VisitFlowOffloadDirective(FlowOffloadDirective *D) {
 }
 
 //===----------------------------------------------------------------------===//
+=======
+>>>>>>> master
 // OpenMP Directives.
 //===----------------------------------------------------------------------===//
 
 void ASTStmtReader::VisitOMPExecutableDirective(OMPExecutableDirective *E) {
   E->setLocStart(ReadSourceLocation());
   E->setLocEnd(ReadSourceLocation());
-  OMPClauseReader ClauseReader(this, Record);
+  OMPClauseReader ClauseReader(Record);
   SmallVector<OMPClause *, 5> Clauses;
   for (unsigned i = 0; i < E->getNumClauses(); ++i)
     Clauses.push_back(ClauseReader.readClause());

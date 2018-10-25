@@ -52,6 +52,7 @@
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Instrumentation.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizerPass.h"
 #include "llvm/Transforms/Instrumentation/BoundsChecking.h"
 #include "llvm/Transforms/Instrumentation/GCOVProfiler.h"
 #include "llvm/Transforms/ObjCARC.h"
@@ -265,14 +266,15 @@ static void addKernelHWAddressSanitizerPasses(const PassManagerBuilder &Builder,
       /*CompileKernel*/ true, /*Recover*/ true));
 }
 
-static void addMemorySanitizerPass(const PassManagerBuilder &Builder,
-                                   legacy::PassManagerBase &PM) {
+static void addGeneralOptsForMemorySanitizer(const PassManagerBuilder &Builder,
+                                             legacy::PassManagerBase &PM,
+                                             bool CompileKernel) {
   const PassManagerBuilderWrapper &BuilderWrapper =
       static_cast<const PassManagerBuilderWrapper&>(Builder);
   const CodeGenOptions &CGOpts = BuilderWrapper.getCGOpts();
   int TrackOrigins = CGOpts.SanitizeMemoryTrackOrigins;
   bool Recover = CGOpts.SanitizeRecover.has(SanitizerKind::Memory);
-  PM.add(createMemorySanitizerPass(TrackOrigins, Recover));
+  PM.add(createMemorySanitizerPass(TrackOrigins, Recover, CompileKernel));
 
   // MemorySanitizer inserts complex instrumentation that mostly follows
   // the logic of the original code, but operates on "shadow" values.
@@ -285,6 +287,16 @@ static void addMemorySanitizerPass(const PassManagerBuilder &Builder,
     PM.add(createInstructionCombiningPass());
     PM.add(createDeadStoreEliminationPass());
   }
+}
+
+static void addMemorySanitizerPass(const PassManagerBuilder &Builder,
+                                   legacy::PassManagerBase &PM) {
+  addGeneralOptsForMemorySanitizer(Builder, PM, /*CompileKernel*/ false);
+}
+
+static void addKernelMemorySanitizerPass(const PassManagerBuilder &Builder,
+                                         legacy::PassManagerBase &PM) {
+  addGeneralOptsForMemorySanitizer(Builder, PM, /*CompileKernel*/ true);
 }
 
 static void addThreadSanitizerPass(const PassManagerBuilder &Builder,
@@ -614,6 +626,13 @@ void EmitAssemblyHelper::CreatePasses(legacy::PassManager &MPM,
                            addMemorySanitizerPass);
   }
 
+  if (LangOpts.Sanitize.has(SanitizerKind::KernelMemory)) {
+    PMBuilder.addExtension(PassManagerBuilder::EP_OptimizerLast,
+                           addKernelMemorySanitizerPass);
+    PMBuilder.addExtension(PassManagerBuilder::EP_EnabledOnOptLevel0,
+                           addKernelMemorySanitizerPass);
+  }
+
   if (LangOpts.Sanitize.has(SanitizerKind::Thread)) {
     PMBuilder.addExtension(PassManagerBuilder::EP_OptimizerLast,
                            addThreadSanitizerPass);
@@ -912,18 +931,21 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
     PGOOpt = PGOOptions(CodeGenOpts.InstrProfileOutput.empty()
                             ? DefaultProfileGenName
                             : CodeGenOpts.InstrProfileOutput,
-                        "", "", true, CodeGenOpts.DebugInfoForProfiling);
+                        "", "", "", true,
+                        CodeGenOpts.DebugInfoForProfiling);
   else if (CodeGenOpts.hasProfileIRUse())
     // -fprofile-use.
-    PGOOpt = PGOOptions("", CodeGenOpts.ProfileInstrumentUsePath, "", false,
+    PGOOpt = PGOOptions("", CodeGenOpts.ProfileInstrumentUsePath, "",
+                        CodeGenOpts.ProfileRemappingFile, false,
                         CodeGenOpts.DebugInfoForProfiling);
   else if (!CodeGenOpts.SampleProfileFile.empty())
     // -fprofile-sample-use
-    PGOOpt = PGOOptions("", "", CodeGenOpts.SampleProfileFile, false,
+    PGOOpt = PGOOptions("", "", CodeGenOpts.SampleProfileFile,
+                        CodeGenOpts.ProfileRemappingFile, false,
                         CodeGenOpts.DebugInfoForProfiling);
   else if (CodeGenOpts.DebugInfoForProfiling)
     // -fdebug-info-for-profiling
-    PGOOpt = PGOOptions("", "", "", false, true);
+    PGOOpt = PGOOptions("", "", "", "", false, true);
 
   PassBuilder PB(TM.get(), PGOOpt);
 
@@ -1000,6 +1022,16 @@ void EmitAssemblyHelper::EmitAssemblyWithNewPassManager(
         MPM = PB.buildPerModuleDefaultPipeline(Level,
                                                CodeGenOpts.DebugPassManager);
       }
+    }
+
+    if (LangOpts.Sanitize.has(SanitizerKind::Address)) {
+      bool Recover = CodeGenOpts.SanitizeRecover.has(SanitizerKind::Address);
+      MPM.addPass(createModuleToFunctionPassAdaptor(
+          AddressSanitizerPass(/*CompileKernel=*/false, Recover,
+                               CodeGenOpts.SanitizeAddressUseAfterScope)));
+      bool ModuleUseAfterScope = asanUseGlobalsGC(TargetTriple, CodeGenOpts);
+      MPM.addPass(AddressSanitizerPass(/*CompileKernel=*/false, Recover,
+                                       ModuleUseAfterScope));
     }
   }
 
@@ -1112,6 +1144,7 @@ static void runThinLTOBackend(ModuleSummaryIndex *CombinedIndex, Module *M,
                               const LangOptions &LOpts,
                               std::unique_ptr<raw_pwrite_stream> OS,
                               std::string SampleProfile,
+                              std::string ProfileRemapping,
                               BackendAction Action) {
   StringMap<DenseMap<GlobalValue::GUID, GlobalValueSummary *>>
       ModuleToDefinedGVSummaries;
@@ -1184,6 +1217,7 @@ static void runThinLTOBackend(ModuleSummaryIndex *CombinedIndex, Module *M,
   Conf.CGOptLevel = getCGOptLevel(CGOpts);
   initTargetOptions(Conf.Options, CGOpts, TOpts, LOpts, HeaderOpts);
   Conf.SampleProfile = std::move(SampleProfile);
+  Conf.ProfileRemapping = std::move(ProfileRemapping);
   Conf.UseNewPM = CGOpts.ExperimentalNewPassManager;
   Conf.DebugPassManager = CGOpts.DebugPassManager;
   Conf.RemarksWithHotness = CGOpts.DiagnosticsWithHotness;
@@ -1250,7 +1284,7 @@ void clang::EmitBackendOutput(DiagnosticsEngine &Diags,
       if (!CombinedIndex->skipModuleByDistributedBackend()) {
         runThinLTOBackend(CombinedIndex.get(), M, HeaderOpts, CGOpts, TOpts,
                           LOpts, std::move(OS), CGOpts.SampleProfileFile,
-                          Action);
+                          CGOpts.ProfileRemappingFile, Action);
         return;
       }
       // Distributed indexing detected that nothing from the module is needed

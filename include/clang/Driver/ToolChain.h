@@ -36,17 +36,16 @@ class ArgList;
 class DerivedArgList;
 
 } // namespace opt
-} // namespace llvm
-
-namespace clang {
-
-class ObjCRuntime;
-
 namespace vfs {
 
 class FileSystem;
 
 } // namespace vfs
+} // namespace llvm
+
+namespace clang {
+
+class ObjCRuntime;
 
 namespace driver {
 
@@ -149,6 +148,7 @@ private:
 
 protected:
   MultilibSet Multilibs;
+  Multilib SelectedMultilib;
 
   ToolChain(const Driver &D, const llvm::Triple &T,
             const llvm::opt::ArgList &Args);
@@ -182,7 +182,7 @@ public:
   // Accessors
 
   const Driver &getDriver() const { return D; }
-  vfs::FileSystem &getVFS() const;
+  llvm::vfs::FileSystem &getVFS() const;
   const llvm::Triple &getTriple() const { return Triple; }
 
   /// Get the toolchain's aux triple, if it has one.
@@ -226,6 +226,8 @@ public:
   const path_list &getProgramPaths() const { return ProgramPaths; }
 
   const MultilibSet &getMultilibs() const { return Multilibs; }
+
+  const Multilib &getMultilib() const { return SelectedMultilib; }
 
   const SanitizerArgs& getSanitizerArgs() const;
 

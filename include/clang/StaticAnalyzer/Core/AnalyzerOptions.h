@@ -85,7 +85,7 @@ enum CXXInlineableMemberKind {
   // Uninitialized = 0,
 
   /// A dummy mode in which no C++ inlining is enabled.
-  CIMK_None = 1,
+  CIMK_None,
 
   /// Refers to regular member function and operator calls.
   CIMK_MemberFunctions,
@@ -102,8 +102,6 @@ enum CXXInlineableMemberKind {
 
 /// Describes the different modes of inter-procedural analysis.
 enum IPAKind {
-  IPAK_NotSet = 0,
-
   /// Perform only intra-procedural analysis.
   IPAK_None = 1,
 
@@ -140,6 +138,9 @@ public:
 
   std::string AnalyzeSpecificFunction;
 
+  /// File path to which the exploded graph should be dumped.
+  std::string DumpExplodedGraphTo;
+
   /// Store full compiler invocation for reproducible instructions in the
   /// generated report.
   std::string FullCompilerInvocation;
@@ -160,20 +161,10 @@ public:
   unsigned AnalyzerDisplayProgress : 1;
   unsigned AnalyzeNestedBlocks : 1;
 
-  /// The flag regulates if we should eagerly assume evaluations of
-  /// conditionals, thus, bifurcating the path.
-  ///
-  /// This flag indicates how the engine should handle expressions such as: 'x =
-  /// (y != 0)'.  When this flag is true then the subexpression 'y != 0' will be
-  /// eagerly assumed to be true or false, thus evaluating it to the integers 0
-  /// or 1 respectively.  The upside is that this can increase analysis
-  /// precision until we have a better way to lazily evaluate such logic.  The
-  /// downside is that it eagerly bifurcates paths.
   unsigned eagerlyAssumeBinOpBifurcation : 1;
 
   unsigned TrimGraph : 1;
   unsigned visualizeExplodedGraphWithGraphViz : 1;
-  unsigned visualizeExplodedGraphWithUbiGraph : 1;
   unsigned UnoptimizedCFG : 1;
   unsigned PrintStats : 1;
 
@@ -193,17 +184,13 @@ public:
     BFS,
     UnexploredFirst,
     UnexploredFirstQueue,
+    UnexploredFirstLocationQueue,
     BFSBlockDFSContents,
-    NotSet
   };
 
 private:
-  ExplorationStrategyKind ExplorationStrategy = ExplorationStrategyKind::NotSet;
-
   /// Describes the kinds for high-level analyzer mode.
   enum UserModeKind {
-    UMK_NotSet = 0,
-
     /// Perform shallow but fast analyzes.
     UMK_Shallow = 1,
 
@@ -211,16 +198,18 @@ private:
     UMK_Deep = 2
   };
 
+  llvm::Optional<ExplorationStrategyKind> ExplorationStrategy;
+
   /// Controls the high-level analyzer mode, which influences the default
   /// settings for some of the lower-level config options (such as IPAMode).
   /// \sa getUserMode
-  UserModeKind UserMode = UMK_NotSet;
+  llvm::Optional<UserModeKind> UserMode;
 
   /// Controls the mode of inter-procedural analysis.
-  IPAKind IPAMode = IPAK_NotSet;
+  llvm::Optional<IPAKind> IPAMode;
 
   /// Controls which C++ member functions will be considered for inlining.
-  CXXInlineableMemberKind CXXMemberInliningMode;
+  llvm::Optional<CXXInlineableMemberKind> CXXMemberInliningMode;
 
   /// \sa includeImplicitDtorsInCFG
   Optional<bool> IncludeImplicitDtorsInCFG;
@@ -321,6 +310,9 @@ private:
   /// \sa shouldAggressivelySimplifyBinaryOperation
   Optional<bool> AggressiveBinaryOperationSimplification;
 
+  /// \sa shouldEagerlyAssume
+  Optional<bool> EagerlyAssumeBinOpBifurcation;
+
   /// \sa getCTUDir
   Optional<StringRef> CTUDir;
 
@@ -367,7 +359,7 @@ public:
         AnalyzerDisplayProgress(false), AnalyzeNestedBlocks(false),
         eagerlyAssumeBinOpBifurcation(false), TrimGraph(false),
         visualizeExplodedGraphWithGraphViz(false),
-        visualizeExplodedGraphWithUbiGraph(false), UnoptimizedCFG(false),
+        UnoptimizedCFG(false),
         PrintStats(false), NoRetryExhausted(false), CXXMemberInliningMode() {}
 
   /// Interprets an option's string value as a boolean. The "true" string is
@@ -423,6 +415,12 @@ public:
                          const ento::CheckerBase *C = nullptr,
                          bool SearchInParents = false);
 
+
+  unsigned getOptionAsUInt(Optional<unsigned> &V, StringRef Name,
+                           unsigned DefaultVal,
+                           const ento::CheckerBase *C = nullptr,
+                           bool SearchInParents = false);
+
   /// Query an option's string value.
   ///
   /// If an option value is not provided, returns the given \p DefaultVal.
@@ -437,6 +435,11 @@ public:
   /// be searched as well. The inner packages take precedence over the outer
   /// ones.
   StringRef getOptionAsString(StringRef Name, StringRef DefaultVal,
+                              const ento::CheckerBase *C = nullptr,
+                              bool SearchInParents = false);
+
+  StringRef getOptionAsString(Optional<StringRef> &V, StringRef Name,
+                              StringRef DefaultVal,
                               const ento::CheckerBase *C = nullptr,
                               bool SearchInParents = false);
 
@@ -703,6 +706,17 @@ public:
   /// '+' or '-'. The rearrangement also happens with '-' instead of '+' on
   // either or both side and also if any or both integers are missing.
   bool shouldAggressivelySimplifyBinaryOperation();
+
+  /// Returns true if we should eagerly assume evaluations of
+  /// conditionals, thus, bifurcating the path.
+  ///
+  /// This indicates how the engine should handle expressions such as: 'x =
+  /// (y != 0)'.  When this is true then the subexpression 'y != 0' will be
+  /// eagerly assumed to be true or false, thus evaluating it to the integers 0
+  /// or 1 respectively.  The upside is that this can increase analysis
+  /// precision until we have a better way to lazily evaluate such logic.  The
+  /// downside is that it eagerly bifurcates paths.
+  bool shouldEagerlyAssume();
 
   /// Returns the directory containing the CTU related files.
   StringRef getCTUDir();

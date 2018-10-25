@@ -1222,6 +1222,7 @@ void ASTStmtWriter::VisitCXXForRangeStmt(CXXForRangeStmt *S) {
   Record.AddSourceLocation(S->getCoawaitLoc());
   Record.AddSourceLocation(S->getColonLoc());
   Record.AddSourceLocation(S->getRParenLoc());
+  Record.AddStmt(S->getInit());
   Record.AddStmt(S->getRangeStmt());
   Record.AddStmt(S->getBeginStmt());
   Record.AddStmt(S->getEndStmt());
@@ -1803,6 +1804,7 @@ void ASTStmtWriter::VisitSEHLeaveStmt(SEHLeaveStmt *S) {
 }
 
 //===----------------------------------------------------------------------===//
+<<<<<<< HEAD
 // OpenMP Clauses.
 //===----------------------------------------------------------------------===//
 
@@ -2303,6 +2305,8 @@ void ASTStmtWriter::VisitFlowOffloadDirective(FlowOffloadDirective *D) {
 }
 
 //===----------------------------------------------------------------------===//
+=======
+>>>>>>> master
 // OpenMP Directives.
 //===----------------------------------------------------------------------===//
 void ASTStmtWriter::VisitOMPExecutableDirective(OMPExecutableDirective *E) {

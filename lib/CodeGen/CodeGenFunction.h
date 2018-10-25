@@ -1787,7 +1787,7 @@ public:
                                 llvm::Value *ptr);
 
   Address LoadBlockStruct();
-  Address GetAddrOfBlockDecl(const VarDecl *var, bool ByRef);
+  Address GetAddrOfBlockDecl(const VarDecl *var);
 
   /// BuildBlockByrefAddress - Computes the location of the
   /// data in a variable which is declared as __block.
@@ -2683,8 +2683,9 @@ public:
 
     llvm::Value *NRVOFlag;
 
-    /// True if the variable is a __block variable.
-    bool IsByRef;
+    /// True if the variable is a __block variable that is captured by an
+    /// escaping block.
+    bool IsEscapingByRef;
 
     /// True if the variable is of aggregate type and has a constant
     /// initializer.
@@ -2704,7 +2705,7 @@ public:
 
     AutoVarEmission(const VarDecl &variable)
         : Variable(&variable), Addr(Address::invalid()), NRVOFlag(nullptr),
-          IsByRef(false), IsConstantAggregate(false),
+          IsEscapingByRef(false), IsConstantAggregate(false),
           SizeForLifetimeMarkers(nullptr), AllocaAddr(Address::invalid()) {}
 
     bool wasEmittedAsGlobal() const { return !Addr.isValid(); }
@@ -2734,7 +2735,7 @@ public:
     /// Note that this does not chase the forwarding pointer for
     /// __block decls.
     Address getObjectAddress(CodeGenFunction &CGF) const {
-      if (!IsByRef) return Addr;
+      if (!IsEscapingByRef) return Addr;
 
       return CGF.emitBlockByrefAddress(Addr, Variable, /*forward*/ false);
     }
@@ -4274,47 +4275,28 @@ public:
 
   void EmitSanitizerStatReport(llvm::SanitizerStatKind SSK);
 
-  struct TargetMultiVersionResolverOption {
+  struct MultiVersionResolverOption {
     llvm::Function *Function;
-    TargetAttr::ParsedTargetAttr ParsedAttribute;
-    unsigned Priority;
-    TargetMultiVersionResolverOption(
-        const TargetInfo &TargInfo, llvm::Function *F,
-        const clang::TargetAttr::ParsedTargetAttr &PT)
-        : Function(F), ParsedAttribute(PT), Priority(0u) {
-      for (StringRef Feat : PT.Features)
-        Priority = std::max(Priority,
-                            TargInfo.multiVersionSortPriority(Feat.substr(1)));
+    struct Conds {
+      StringRef Architecture;
+      llvm::SmallVector<StringRef, 8> Features;
 
-      if (!PT.Architecture.empty())
-        Priority = std::max(Priority,
-                            TargInfo.multiVersionSortPriority(PT.Architecture));
-    }
+      Conds(StringRef Arch, ArrayRef<StringRef> Feats)
+          : Architecture(Arch), Features(Feats.begin(), Feats.end()) {}
+    } Conditions;
 
-    bool operator>(const TargetMultiVersionResolverOption &Other) const {
-      return Priority > Other.Priority;
-    }
+    MultiVersionResolverOption(llvm::Function *F, StringRef Arch,
+                               ArrayRef<StringRef> Feats)
+        : Function(F), Conditions(Arch, Feats) {}
   };
-  void EmitTargetMultiVersionResolver(
-      llvm::Function *Resolver,
-      ArrayRef<TargetMultiVersionResolverOption> Options);
 
-  struct CPUDispatchMultiVersionResolverOption {
-    llvm::Function *Function;
-    // Note: EmitX86CPUSupports only has 32 bits available, so we store the mask
-    // as 32 bits here.  When 64-bit support is added to __builtin_cpu_supports,
-    // this can be extended to 64 bits.
-    uint32_t FeatureMask;
-    CPUDispatchMultiVersionResolverOption(llvm::Function *F, uint64_t Mask)
-        : Function(F), FeatureMask(static_cast<uint32_t>(Mask)) {}
-    bool operator>(const CPUDispatchMultiVersionResolverOption &Other) const {
-      return FeatureMask > Other.FeatureMask;
-    }
-  };
-  void EmitCPUDispatchMultiVersionResolver(
-      llvm::Function *Resolver,
-      ArrayRef<CPUDispatchMultiVersionResolverOption> Options);
-  static uint32_t GetX86CpuSupportsMask(ArrayRef<StringRef> FeatureStrs);
+  // Emits the body of a multiversion function's resolver. Assumes that the
+  // options are already sorted in the proper order, with the 'default' option
+  // last (if it exists).
+  void EmitMultiVersionResolver(llvm::Function *Resolver,
+                                ArrayRef<MultiVersionResolverOption> Options);
+
+  static uint64_t GetX86CpuSupportsMask(ArrayRef<StringRef> FeatureStrs);
 
 private:
   QualType getVarArgType(const Expr *Arg);
@@ -4331,10 +4313,9 @@ private:
   llvm::Value *EmitX86CpuIs(StringRef CPUStr);
   llvm::Value *EmitX86CpuSupports(const CallExpr *E);
   llvm::Value *EmitX86CpuSupports(ArrayRef<StringRef> FeatureStrs);
-  llvm::Value *EmitX86CpuSupports(uint32_t Mask);
+  llvm::Value *EmitX86CpuSupports(uint64_t Mask);
   llvm::Value *EmitX86CpuInit();
-  llvm::Value *
-  FormResolverCondition(const TargetMultiVersionResolverOption &RO);
+  llvm::Value *FormResolverCondition(const MultiVersionResolverOption &RO);
 };
 
 inline DominatingLLVMValue::saved_type

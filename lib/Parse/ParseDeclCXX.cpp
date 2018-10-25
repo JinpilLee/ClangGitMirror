@@ -3449,6 +3449,7 @@ MemInitResult Parser::ParseMemInitializer(Decl *ConstructorDecl) {
   if (getLangOpts().CPlusPlus11 && Tok.is(tok::l_brace)) {
     Diag(Tok, diag::warn_cxx98_compat_generalized_initializer_lists);
 
+    // FIXME: Add support for signature help inside initializer lists.
     ExprResult InitList = ParseBraceInitializer();
     if (InitList.isInvalid())
       return true;
@@ -3466,7 +3467,20 @@ MemInitResult Parser::ParseMemInitializer(Decl *ConstructorDecl) {
     // Parse the optional expression-list.
     ExprVector ArgExprs;
     CommaLocsTy CommaLocs;
-    if (Tok.isNot(tok::r_paren) && ParseExpressionList(ArgExprs, CommaLocs)) {
+    if (Tok.isNot(tok::r_paren) &&
+        ParseExpressionList(ArgExprs, CommaLocs, [&] {
+          QualType PreferredType = Actions.ProduceCtorInitMemberSignatureHelp(
+              getCurScope(), ConstructorDecl, SS, TemplateTypeTy, ArgExprs, II,
+              T.getOpenLocation());
+          CalledSignatureHelp = true;
+          Actions.CodeCompleteExpression(getCurScope(), PreferredType);
+        })) {
+      if (PP.isCodeCompletionReached() && !CalledSignatureHelp) {
+        Actions.ProduceCtorInitMemberSignatureHelp(
+            getCurScope(), ConstructorDecl, SS, TemplateTypeTy, ArgExprs, II,
+            T.getOpenLocation());
+        CalledSignatureHelp = true;
+      }
       SkipUntil(tok::r_paren, StopAtSemi);
       return true;
     }
@@ -3854,7 +3868,8 @@ bool Parser::ParseCXX11AttributeArgs(IdentifierInfo *AttrName,
     return false;
   }
 
-  if (ScopeName && ScopeName->getName() == "gnu") {
+  if (ScopeName &&
+      (ScopeName->getName() == "gnu" || ScopeName->getName() == "__gnu__")) {
     // GNU-scoped attributes have some special cases to handle GNU-specific
     // behaviors.
     ParseGNUAttributeArgs(AttrName, AttrNameLoc, Attrs, EndLoc, ScopeName,

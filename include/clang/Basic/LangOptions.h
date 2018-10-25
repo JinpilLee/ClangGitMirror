@@ -73,8 +73,11 @@ public:
     /// Compiling a module from a module map.
     CMK_ModuleMap,
 
+    /// Compiling a module from a list of header files.
+    CMK_HeaderModule,
+
     /// Compiling a C++ modules TS module interface unit.
-    CMK_ModuleInterface
+    CMK_ModuleInterface,
   };
 
   enum PragmaMSPointersToMembersKind {
@@ -126,6 +129,23 @@ public:
     Latest
   };
 
+  enum class CoreFoundationABI {
+    /// No interoperability ABI has been specified
+    Unspecified,
+    /// CoreFoundation does not have any language interoperability
+    Standalone,
+    /// Interoperability with the ObjectiveC runtime
+    ObjectiveC,
+    /// Interoperability with the latest known version of the Swift runtime
+    Swift,
+    /// Interoperability with the Swift 5.0 runtime
+    Swift5_0,
+    /// Interoperability with the Swift 4.2 runtime
+    Swift4_2,
+    /// Interoperability with the Swift 4.1 runtime
+    Swift4_1,
+  };
+
   enum FPContractModeKind {
     // Form fused FP ops only where result will not be affected.
     FPC_Off,
@@ -171,6 +191,8 @@ public:
   std::vector<std::string> XRayAttrListFiles;
 
   clang::ObjCRuntime ObjCRuntime;
+
+  CoreFoundationABI CFRuntime = CoreFoundationABI::Unspecified;
 
   std::string ObjCConstantStringClass;
 

@@ -8,8 +8,8 @@
 //===----------------------------------------------------------------------===//
 //
 //  This file defines summaries implementation for retain counting, which
-//  implements a reference count checker for Core Foundation and Cocoa
-//  on (Mac OS X).
+//  implements a reference count checker for Core Foundation, Cocoa
+//  and OSObject (on Mac OS X).
 //
 //===----------------------------------------------------------------------===//
 
@@ -19,6 +19,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/ParentMap.h"
+#include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang;
 using namespace ento;
@@ -53,29 +54,19 @@ RetainSummaryManager::getPersistentSummary(const RetainSummary &OldSumm) {
   return Summ;
 }
 
-static bool isOSObjectSubclass(QualType T);
-
-static bool isOSObjectSubclass(const CXXRecordDecl *RD) {
-  if (RD->getDeclName().getAsString() == "OSObject")
-    return true;
-
-  const CXXRecordDecl *RDD = RD->getDefinition();
-  if (!RDD)
-    return false;
-
-  for (const CXXBaseSpecifier Spec : RDD->bases()) {
-    if (isOSObjectSubclass(Spec.getType()))
-      return true;
-  }
-  return false;
+static bool isSubclass(const Decl *D,
+                       StringRef ClassName) {
+  using namespace ast_matchers;
+  DeclarationMatcher SubclassM = cxxRecordDecl(isSameOrDerivedFrom(ClassName));
+  return !(match(SubclassM, *D, D->getASTContext()).empty());
 }
 
-/// \return Whether type represents an OSObject successor.
-static bool isOSObjectSubclass(QualType T) {
-  if (const auto *RD = T->getAsCXXRecordDecl()) {
-    return isOSObjectSubclass(RD);
-  }
-  return false;
+static bool isOSObjectSubclass(const Decl *D) {
+  return isSubclass(D, "OSObject");
+}
+
+static bool isOSIteratorSubclass(const Decl *D) {
+  return isSubclass(D, "OSIterator");
 }
 
 static bool hasRCAnnotation(const Decl *D, StringRef rcAnnotation) {
@@ -103,6 +94,22 @@ static bool isMakeCollectable(StringRef FName) {
   return FName.contains_lower("MakeCollectable");
 }
 
+/// A function is OSObject related if it is declared on a subclass
+/// of OSObject, or any of the parameters is a subclass of an OSObject.
+static bool isOSObjectRelated(const CXXMethodDecl *MD) {
+  if (isOSObjectSubclass(MD->getParent()))
+    return true;
+
+  for (ParmVarDecl *Param : MD->parameters()) {
+    QualType PT = Param->getType();
+    if (CXXRecordDecl *RD = PT->getPointeeType()->getAsCXXRecordDecl())
+      if (isOSObjectSubclass(RD))
+        return true;
+  }
+
+  return false;
+}
+
 const RetainSummary *
 RetainSummaryManager::generateSummary(const FunctionDecl *FD,
                                       bool &AllowAnnotations) {
@@ -111,9 +118,6 @@ RetainSummaryManager::generateSummary(const FunctionDecl *FD,
     return getPersistentStopSummary();
   }
 
-  // [PR 3337] Use 'getAs<FunctionType>' to strip away any typedefs on the
-  // function's type.
-  const FunctionType *FT = FD->getType()->getAs<FunctionType>();
   const IdentifierInfo *II = FD->getIdentifier();
   if (!II)
     return getDefaultSummary();
@@ -124,7 +128,8 @@ RetainSummaryManager::generateSummary(const FunctionDecl *FD,
   // down below.
   FName = FName.substr(FName.find_first_not_of('_'));
 
-  // Inspect the result type.
+  // Inspect the result type. Strip away any typedefs.
+  const auto *FT = FD->getType()->getAs<FunctionType>();
   QualType RetTy = FT->getReturnType();
   std::string RetTyName = RetTy.getAsString();
 
@@ -221,15 +226,22 @@ RetainSummaryManager::generateSummary(const FunctionDecl *FD,
   }
 
   if (RetTy->isPointerType()) {
-    if (TrackOSObjects && isOSObjectSubclass(RetTy->getPointeeType())) {
+
+    const CXXRecordDecl *PD = RetTy->getPointeeType()->getAsCXXRecordDecl();
+    if (TrackOSObjects && PD && isOSObjectSubclass(PD)) {
       if (const IdentifierInfo *II = FD->getIdentifier()) {
-        StringRef FuncName = II->getName();
-        if (FuncName.contains_lower("with")
-            || FuncName.contains_lower("create")
-            || FuncName.contains_lower("copy"))
+
+        // All objects returned with functions starting with "get" are getters.
+        if (II->getName().startswith("get")) {
+
+          // ...except for iterators.
+          if (isOSIteratorSubclass(PD))
+            return getOSSummaryCreateRule(FD);
+          return getOSSummaryGetRule(FD);
+        } else {
           return getOSSummaryCreateRule(FD);
+        }
       }
-      return getOSSummaryGetRule(FD);
     }
 
     // For CoreFoundation ('CF') types.
@@ -279,11 +291,11 @@ RetainSummaryManager::generateSummary(const FunctionDecl *FD,
 
   if (const auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
     const CXXRecordDecl *Parent = MD->getParent();
-    if (TrackOSObjects && isOSObjectSubclass(Parent)) {
-      if (isRelease(FD, FName))
+    if (TrackOSObjects && Parent && isOSObjectSubclass(Parent)) {
+      if (FName == "release")
         return getOSSummaryReleaseRule(FD);
 
-      if (isRetain(FD, FName))
+      if (FName == "retain")
         return getOSSummaryRetainRule(FD);
     }
   }
@@ -326,12 +338,10 @@ RetainSummaryManager::generateSummary(const FunctionDecl *FD,
     }
   }
 
-  if (isa<CXXMethodDecl>(FD)) {
-
-    // Stop tracking arguments passed to C++ methods, as those might be
-    // wrapping smart pointers.
-    return getPersistentSummary(RetEffect::MakeNoRet(), DoNothing, StopTracking,
-                                DoNothing);
+  if (const auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
+    if (!(TrackOSObjects && isOSObjectRelated(MD)))
+      return getPersistentSummary(RetEffect::MakeNoRet(), DoNothing, StopTracking,
+                                  DoNothing);
   }
 
   return getDefaultSummary();
@@ -508,12 +518,6 @@ bool RetainSummaryManager::isTrustedReferenceCountImplementation(
 bool RetainSummaryManager::canEval(const CallExpr *CE,
                                    const FunctionDecl *FD,
                                    bool &hasTrustedImplementationAnnotation) {
-  // For now, we're only handling the functions that return aliases of their
-  // arguments: CFRetain (and its families).
-  // Eventually we should add other functions we can model entirely,
-  // such as CFRelease, which don't invalidate their arguments or globals.
-  if (CE->getNumArgs() != 1)
-    return false;
 
   IdentifierInfo *II = FD->getIdentifier();
   if (!II)
@@ -535,11 +539,24 @@ bool RetainSummaryManager::canEval(const CallExpr *CE,
       return isRetain(FD, FName) || isAutorelease(FD, FName) ||
              isMakeCollectable(FName);
 
+    // Process OSDynamicCast: should just return the first argument.
+    // For now, treating the cast as a no-op, and disregarding the case where
+    // the output becomes null due to the type mismatch.
+    if (TrackOSObjects && FName == "safeMetaCast") {
+      return true;
+    }
+
     const FunctionDecl* FDD = FD->getDefinition();
     if (FDD && isTrustedReferenceCountImplementation(FDD)) {
       hasTrustedImplementationAnnotation = true;
       return true;
     }
+  }
+
+  if (const auto *MD = dyn_cast<CXXMethodDecl>(FD)) {
+    const CXXRecordDecl *Parent = MD->getParent();
+    if (TrackOSObjects && Parent && isOSObjectSubclass(Parent))
+      return FName == "release" || FName == "retain";
   }
 
   return false;
@@ -639,6 +656,8 @@ RetainSummaryManager::getRetEffectFromAnnotations(QualType RetTy,
 
   if (D->hasAttr<CFReturnsNotRetainedAttr>())
     return RetEffect::MakeNotOwned(RetEffect::CF);
+  else if (hasRCAnnotation(D, "rc_ownership_returns_not_retained"))
+    return RetEffect::MakeNotOwned(RetEffect::Generalized);
 
   return None;
 }
